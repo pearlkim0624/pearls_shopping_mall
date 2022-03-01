@@ -6,21 +6,26 @@ import (
 	"time"
 )
 
-// main function of shopping mall.
 // main creates basic data structures,
 // one go channel for delivery and
 // display main menu to a user.
 func main() {
+	// Initialize the customer information.
 	cust := newCustomer()
+	// Initialize the items information which are sold in the shopping mall.
 	itemList := newItemList()
+	// Initialize the customer's order list.
 	orderList := newOrderList()
-	orderChannel := make(chan ITEMSTOBUY)
 
+	// order delivery is carried by separate go routine.
+	orderChannel := make(chan ITEMSTOBUY)
 	go orderMain(orderChannel, cust, orderList)
 
+	// display main menu
 	mainMenu(cust, itemList, orderList, orderChannel)
 }
 
+// mainMenu is the starting menu of the shopping mall.
 func mainMenu(cust *Customer, itemList *ItemList, orderList *OrderList, oc chan ITEMSTOBUY) {
 	var input int
 
@@ -41,6 +46,7 @@ func mainMenu(cust *Customer, itemList *ItemList, orderList *OrderList, oc chan 
 		case 1: // Shopping
 			shoppingMenu(cust, itemList, oc)
 		case 2: // My Cart
+			// Print the content of the cart
 			cust.displayCart()
 			myCartMenu(cust, itemList, oc)
 		case 3: // My Points
@@ -70,7 +76,7 @@ func myCartMenu(cust *Customer, itemList *ItemList, oc chan ITEMSTOBUY) {
 		fmt.Scanln(&input)
 
 		switch input {
-		case 1:
+		case 1: // Proceed to purchase the items in the cart.
 			buyNowMenu(cust, itemList, cust.cart, oc)
 			cust.resetCart()
 			return
@@ -161,13 +167,14 @@ func inputCountMenu(cust *Customer, itemList *ItemList, itemsToBuy ITEMSTOBUY, o
 	}
 }
 
+// buyNowMenu is to purchase the itemsToBuy and make new order.
+// If the total points to buy the items exceeds the customer's point, or
+// the amounts of any items in stock are not enough,
+// it prints error message and return.
+// If it proceeds the purchase, it send itemsToBuy to orderMain to make an order.
 func buyNowMenu(cust *Customer, itemList *ItemList, itemsToBuy map[string]int, oc chan ITEMSTOBUY) {
 	fmt.Println("Buy Now")
 
-	/* check points. item amount and order number
-	update points, item amount
-	send request to orderMain through orderChannel
-	*/
 	if cust.getOrderNum() >= MAXORDER {
 		log.Println("Order request denied. Maximum order number is reached. Try later")
 		return
@@ -187,6 +194,7 @@ func buyNowMenu(cust *Customer, itemList *ItemList, itemsToBuy map[string]int, o
 		total += itemList[i].price * v
 	}
 
+	// if the total points to buy exceeds the current point.
 	if total > cust.point {
 		log.Printf("Lack of points. Your point is %d and your request total is %d\n", cust.point, total)
 		return
@@ -200,10 +208,15 @@ func buyNowMenu(cust *Customer, itemList *ItemList, itemsToBuy map[string]int, o
 	fmt.Printf("Point is %d and total cost is %d\n", cust.point, total)
 	fmt.Println(itemsToBuy)
 
+	// Send to orderChannel
 	oc <- itemsToBuy
 
 }
 
+// orderMain is a go routine to manage all orders.
+// It has a orderChannel with main and deliveryChannel with delivery go routines.
+// When it has a new order, it invokes new go routine for the delivery of that order.
+// When a delivery go routine completes a delivery, it sends the order id to orderMain.
 func orderMain(oc <-chan ITEMSTOBUY, cust *Customer, orderList *OrderList) {
 	fmt.Println("start orderMain")
 
@@ -212,9 +225,10 @@ func orderMain(oc <-chan ITEMSTOBUY, cust *Customer, orderList *OrderList) {
 
 	for {
 		select {
+		// New order
 		case items := <-oc:
-
-			// New order - make orderStr, increase orderNum and go delivery
+			// make orderStr, increase orderNum and
+			// invoke a new delivery go routine
 			if items == nil {
 				log.Println("nil type input in order channel")
 				break // break select
@@ -238,8 +252,8 @@ func orderMain(oc <-chan ITEMSTOBUY, cust *Customer, orderList *OrderList) {
 			cust.addOrderNum()
 			index = (index + 1) % MAXORDER
 
+		// Delivery complete
 		case id := <-dc:
-			// One order delivery done.
 			if orderList[id].status != ORDER_NONE {
 				log.Println("Delivery status of [", id, "] is ", orderList[id].status)
 				break // break select
@@ -256,6 +270,10 @@ func orderMain(oc <-chan ITEMSTOBUY, cust *Customer, orderList *OrderList) {
 	}
 }
 
+// orderDelivery is go routine to handle the delivery of the order.
+// It updates the delivery status timely.
+// When it completes the delivery, it sends the order id to orderMain
+// to indicate the completion of the order.
 func orderDelivery(dc chan<- int, index int, order *OrderStr) {
 	// update status
 	fmt.Println("orderDelivery", order)
