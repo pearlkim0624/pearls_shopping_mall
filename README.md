@@ -9,4 +9,3 @@ The program is implemented in Go, including struct, slice, map, method, go routi
 For the future improvement, it may have multiple users, web-based user interface, etc.
 
 Pearl
-3/2/2022
